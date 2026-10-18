@@ -96,29 +96,29 @@ def check(directory, tag=None):
         root = Path(temporary)
         installation = root / "environment"
         venv.EnvBuilder(with_pip=True).create(installation)
-        binary = installation / ("Sequences" if os.name == "nt" else "bin")
+        binary = installation / ("Scripts" if os.name == "nt" else "bin")
         python = binary / ("python.exe" if os.name == "nt" else "python")
         console = binary / ("func-seq.exe" if os.name == "nt" else "func-seq")
         working = root / "working"
         working.mkdir()
         run([python, "-m", "pip", "install", "--no-deps", "--no-index", wheel], cwd=working, environment=environment)
-        smoke = 'from importlib.metadata import requires; from func_seq import Sequence; assert not requires("func-seq"); assert Sequence("smoke").run().status == "completed"'
+        smoke = 'from importlib.metadata import requires; from func_seq import Script; assert not requires("func-seq"); assert Script("smoke").run().status == "completed"'
         run([python, "-I", "-c", smoke], cwd=working, environment=environment)
         run([console, "--help"], cwd=working, environment=environment)
         run([python, "-I", "-m", "func_seq", "--help"], cwd=working, environment=environment)
         (working / "fixture.py").write_text('''from pathlib import Path
-from func_seq import Sequence
+from func_seq import Script
 def first():
     with Path("calls.txt").open("a") as stream: stream.write("first\\n")
     return {"value": "private-result"}
 def second(value):
     with Path("calls.txt").open("a") as stream: stream.write("second\\n")
     return value
-sequence = Sequence("installed")
-ref = sequence.add_function(first)
-sequence.add_function(second, ref["value"])
+script = Script("installed")
+ref = script.add_function(first)
+script.add_function(second, ref["value"])
 ''')
-        invocation = [console, "run", "fixture:sequence", "--checkpoint", "fixture.progress.json"]
+        invocation = [console, "run", "fixture:script", "--checkpoint", "fixture.progress.json"]
         first = json.loads(run([*invocation, "--pace", "function"], cwd=working, environment=environment))
         require(first["status"] == "paused", "Installed function pacing failed")
         for _ in range(2):

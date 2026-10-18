@@ -17,7 +17,7 @@ _STATUSES = {"ready", "running", "paused", "completed", "failed", "interrupted"}
 
 
 def validate_document(data: dict) -> dict:
-    """Validate the storage schema without importing any sequence code."""
+    """Validate the storage schema without importing any script code."""
     def require(condition):
         if not condition:
             raise CheckpointError("Checkpoint schema or progress is invalid")

@@ -1,7 +1,7 @@
 # Releases
 
 The distribution is `func-seq`, the Python import is `func_seq`, the builder is
-`Sequence`, and the console entry point is `func-seq`. Version 0.1.0 is the first
+`Script`, and the console entry point is `func-seq`. Version 0.1.0 is the first
 release; the earlier development name has no published compatibility package.
 
 ## Candidate verification
