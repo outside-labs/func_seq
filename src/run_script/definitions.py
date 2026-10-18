@@ -178,3 +178,9 @@ class Script:
         from .runtime import delete_progress
 
         return delete_progress(self, checkpoint)
+
+    async def arun(self, **options):
+        """Await the queue using the same progress and pacing rules as run()."""
+        from .runtime import arun
+
+        return await arun(self, **options)

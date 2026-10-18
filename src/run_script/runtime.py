@@ -77,6 +77,8 @@ def _options(pace, control, observer, console_log):
         raise TypeError("control must be a Control")
     if observer is not None and not callable(observer):
         raise TypeError("observer must be callable")
+    if observer is not None and inspect.iscoroutinefunction(observer):
+        raise TypeError("observer must be synchronous")
     if type(console_log) is not bool:
         raise TypeError("console_log must be bool")
     return control if control is not None else Control()
@@ -88,7 +90,11 @@ def _drive(script, state, persist, *, pace, control, observer, console_log, retr
         if console_log:
             print(f"{event.script}: {event.kind}" + (f" {step_id}" if step_id else ""))
         if observer is not None:
-            observer(event)
+            observed = observer(event)
+            if inspect.isawaitable(observed):
+                if inspect.iscoroutine(observed):
+                    observed.close()
+                raise TypeError("observer must be synchronous")
 
     if state.active_step is not None:
         if not retry:
@@ -236,9 +242,38 @@ def _session(script, checkpoint, restart, retry):
 def run(script: Script, *, pace="auto", control=None, observer=None,
         console_log=False, restart=False, retry=False, checkpoint=None) -> RunResult:
     control = _options(pace, control, observer, console_log)
+    if any(inspect.iscoroutinefunction(step.function) for step in script._steps):
+        raise DefinitionError("Script contains asynchronous functions; use arun()")
     with _session(script, checkpoint, restart, retry) as (state, persist):
         return _pump_sync(_drive(script, state, persist, pace=pace, control=control,
                                  observer=observer, console_log=console_log, retry=retry))
+
+
+async def _pump_async(driver):
+    try:
+        call = next(driver)
+        while True:
+            try:
+                output = call.function(*call.args, **call.kwargs)
+                if inspect.isawaitable(output):
+                    output = await output
+            except BaseException as error:
+                call = driver.throw(error)
+            else:
+                call = driver.send(output)
+    except StopIteration as done:
+        return done.value
+    finally:
+        driver.close()
+
+
+async def arun(script: Script, *, pace="auto", control=None, observer=None,
+               console_log=False, restart=False, retry=False, checkpoint=None) -> RunResult:
+    """Await a sequential queue; synchronous functions execute on the calling thread."""
+    control = _options(pace, control, observer, console_log)
+    with _session(script, checkpoint, restart, retry) as (state, persist):
+        return await _pump_async(_drive(script, state, persist, pace=pace, control=control,
+                                       observer=observer, console_log=console_log, retry=retry))
 
 
 def delete_progress(script, checkpoint=None):
