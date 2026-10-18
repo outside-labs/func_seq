@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from run_script import (
+from func_seq import (
     BusyError, CheckpointStore, Control, DefinitionError, RecoveryRequiredError,
     Script, Status, StepFailedError, pause,
 )

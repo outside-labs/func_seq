@@ -1,4 +1,4 @@
-"""Cooperative Python scripts with explicit, serializable step boundaries."""
+"""Cooperative function sequences with explicit, serializable boundaries."""
 
 from .definitions import Ref, Script
 from .control import Control, pause

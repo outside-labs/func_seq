@@ -20,8 +20,8 @@ from .storage import CheckpointStore
 
 
 def _parser():
-    parser = argparse.ArgumentParser(prog="run-script", description="Run trusted Python steps with JSON progress.")
-    parser.add_argument("--version", action="version", version=version("run-script"))
+    parser = argparse.ArgumentParser(prog="func-seq", description="Run trusted Python steps with JSON progress.")
+    parser.add_argument("--version", action="version", version=version("func-seq"))
     commands = parser.add_subparsers(dest="command", required=True)
     run = commands.add_parser("run", help="import an explicitly selected module:script")
     run.add_argument("target", help="trusted module:attribute containing a Script")
@@ -130,5 +130,5 @@ def main(argv=None) -> int:
         print("Interrupted; inspect progress before continuing.", file=sys.stderr)
         return 130
     except (ScriptError, ValueError, TypeError, OSError) as error:
-        print(f"run-script: {error}", file=sys.stderr)
+        print(f"func-seq: {error}", file=sys.stderr)
         return 2

@@ -52,13 +52,13 @@ def check(directory):
         metadata_path = metadata_paths[0]
         info = metadata_path.rsplit("/", 1)[0]
         metadata = BytesParser().parsebytes(archive.read(metadata_path))
-        require(metadata["Name"] == "run-script" and metadata["Requires-Python"] == ">=3.14", "Unexpected metadata")
+        require(metadata["Name"] == "func-seq" and metadata["Requires-Python"] == ">=3.14", "Unexpected metadata")
         require(not metadata.get_all("Requires-Dist"), "Runtime dependencies must remain empty")
-        allowed = {f"run_script/{name}" for name in PACKAGE_FILES} | {
+        allowed = {f"func_seq/{name}" for name in PACKAGE_FILES} | {
             f"{info}/{name}" for name in ("METADATA", "WHEEL", "RECORD", "entry_points.txt")}
         require(set(names) == allowed, "Wheel file allowlist mismatch")
-        require("run-script = run_script.cli:main" in archive.read(f"{info}/entry_points.txt").decode(), "Console entry missing")
-        package = {name: archive.read(f"run_script/{name}") for name in PACKAGE_FILES}
+        require("func-seq = func_seq.cli:main" in archive.read(f"{info}/entry_points.txt").decode(), "Console entry missing")
+        package = {name: archive.read(f"func_seq/{name}") for name in PACKAGE_FILES}
         records = list(csv.reader(StringIO(archive.read(f"{info}/RECORD").decode())))
         require({row[0] for row in records} == allowed and len(records) == len(allowed), "Invalid RECORD paths")
         for path, digest, size in records:
@@ -73,34 +73,34 @@ def check(directory):
         require(all(member.isfile() or member.isdir() for member in members), "Unexpected sdist member type")
         paths = [member.name for member in members if member.isfile()]
         require(len(paths) == len(set(paths)), "Duplicate sdist paths")
-        prefix = f"run_script-{metadata['Version']}/"
+        prefix = f"func_seq-{metadata['Version']}/"
         require(all(path.startswith(prefix) for path in paths), "Unexpected sdist root")
         contents = {path.removeprefix(prefix): archive.extractfile(path).read() for path in paths}
-        require(set(contents) == SUPPORT_FILES | {f"src/run_script/{name}" for name in PACKAGE_FILES}, "Sdist file allowlist mismatch")
+        require(set(contents) == SUPPORT_FILES | {f"src/func_seq/{name}" for name in PACKAGE_FILES}, "Sdist file allowlist mismatch")
         for name, payload in package.items():
-            require(contents[f"src/run_script/{name}"] == payload, "Wheel/source implementation mismatch")
+            require(contents[f"src/func_seq/{name}"] == payload, "Wheel/source implementation mismatch")
         source_metadata = BytesParser().parsebytes(contents["PKG-INFO"])
         require(source_metadata["Version"] == metadata["Version"] and not source_metadata.get_all("Requires-Dist"), "Sdist metadata mismatch")
     environment = os.environ.copy()
     for key in ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"):
         environment.pop(key, None)
     environment["PYTHONNOUSERSITE"] = "1"
-    with tempfile.TemporaryDirectory(prefix="run-script-distribution-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="func-seq-distribution-") as temporary:
         root = Path(temporary)
         installation = root / "environment"
         venv.EnvBuilder(with_pip=True).create(installation)
         binary = installation / ("Scripts" if os.name == "nt" else "bin")
         python = binary / ("python.exe" if os.name == "nt" else "python")
-        console = binary / ("run-script.exe" if os.name == "nt" else "run-script")
+        console = binary / ("func-seq.exe" if os.name == "nt" else "func-seq")
         working = root / "working"
         working.mkdir()
         run([python, "-m", "pip", "install", "--no-deps", "--no-index", wheel], cwd=working, environment=environment)
-        smoke = 'from importlib.metadata import requires; from run_script import Script; assert not requires("run-script"); assert Script("smoke").run().status == "completed"'
+        smoke = 'from importlib.metadata import requires; from func_seq import Script; assert not requires("func-seq"); assert Script("smoke").run().status == "completed"'
         run([python, "-I", "-c", smoke], cwd=working, environment=environment)
         run([console, "--help"], cwd=working, environment=environment)
-        run([python, "-I", "-m", "run_script", "--help"], cwd=working, environment=environment)
+        run([python, "-I", "-m", "func_seq", "--help"], cwd=working, environment=environment)
         (working / "fixture.py").write_text('''from pathlib import Path
-from run_script import Script
+from func_seq import Script
 def first():
     with Path("calls.txt").open("a") as stream: stream.write("first\\n")
     return {"value": "private-result"}

@@ -1,7 +1,7 @@
 [project]
-name = "run-script"
+name = "func-seq"
 version = "0.1.0"
-description = "Cooperative Python scripts with explicit pauses and JSON progress"
+description = "Cooperative function sequences with explicit pauses and JSON progress"
 readme = "README.md"
 authors = [
     { name = "ellainng", email = "299958882+ellainng@users.noreply.github.com" }
@@ -10,11 +10,11 @@ requires-python = ">=3.14"
 dependencies = []
 
 [project.urls]
-Repository = "https://github.com/outside-labs/run_script"
-Issues = "https://github.com/outside-labs/run_script/issues"
+Repository = "https://github.com/outside-labs/func_seq"
+Issues = "https://github.com/outside-labs/func_seq/issues"
 
 [project.scripts]
-run-script = "run_script.cli:main"
+func-seq = "func_seq.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12.19,<0.13.0"]

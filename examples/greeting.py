@@ -1,10 +1,10 @@
-"""Run with: run-script run examples.greeting:script --checkpoint greeting.progress.json"""
+"""Run with: func-seq run examples.greeting:script --checkpoint greeting.progress.json"""
 
-from run_script import Script
+from func_seq import Script
 
 
 def collect():
-    return {"message": "Hello from run_script!"}
+    return {"message": "Hello from func_seq!"}
 
 
 def display(message):

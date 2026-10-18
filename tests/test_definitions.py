@@ -1,8 +1,8 @@
 import unittest
 
-from run_script import DefinitionError, InvalidValueError, Ref, Script
-from run_script.definitions import resolve
-from run_script.values import MAX_BYTES, decode_json, encode_json
+from func_seq import DefinitionError, InvalidValueError, Ref, Script
+from func_seq.definitions import resolve
+from func_seq.values import MAX_BYTES, decode_json, encode_json
 
 
 def identity(value):

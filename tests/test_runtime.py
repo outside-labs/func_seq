@@ -3,7 +3,7 @@ from io import StringIO
 from threading import Event as ThreadEvent, Thread
 import unittest
 
-from run_script import (
+from func_seq import (
     BusyError, Control, DefinitionError, RecoveryRequiredError, ResolutionError,
     Script, Status, StepFailedError, pause,
 )
@@ -187,7 +187,7 @@ class RuntimeTests(unittest.TestCase):
         from pathlib import Path
         from tempfile import TemporaryDirectory
         from unittest.mock import patch
-        from run_script import CheckpointStore
+        from func_seq import CheckpointStore
 
         original = CheckpointStore.save
         for asynchronous in (False, True):

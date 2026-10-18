@@ -7,11 +7,11 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from run_script import (
+from func_seq import (
     BusyError, CheckpointError, CheckpointStore, DefinitionError,
     DefinitionMismatchError, RecoveryRequiredError, Script, Status, StepFailedError,
 )
-from run_script.values import MAX_BYTES
+from func_seq.values import MAX_BYTES
 
 
 def identity(value):
@@ -132,7 +132,7 @@ class StorageTests(unittest.TestCase):
             script.add_function(action)
             return script
 
-        with patch("run_script.storage.os.replace", side_effect=replacement):
+        with patch("func_seq.storage.os.replace", side_effect=replacement):
             with self.assertRaises(StepFailedError):
                 build().run(checkpoint=self.path)
         data = CheckpointStore(self.path).read()
@@ -207,7 +207,7 @@ class StorageTests(unittest.TestCase):
         code = '''
 from pathlib import Path
 import sys
-from run_script import Script
+from func_seq import Script
 def first():
     with Path(sys.argv[2]).open("a") as stream: stream.write("first\\n")
     return {"value": 7}
@@ -229,7 +229,7 @@ print(s.run(checkpoint=sys.argv[1], pace=sys.argv[3]).status)
     def test_hard_process_exit_leaves_lock_and_uncertain_marker(self):
         code = '''
 import os, sys
-from run_script import Script
+from func_seq import Script
 def action(): os._exit(19)
 s = Script("crash")
 s.add_function(action)

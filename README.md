@@ -1,17 +1,20 @@
-# run_script
+# func_seq
 
 Run ordered Python functions, pass JSON results forward, pause at function
 boundaries, and resume from saved progress. Python 3.14+; no runtime dependencies.
+
+Install with `pip install func-seq`. The import package is `func_seq`, and the
+console command is `func-seq`.
 
 ## Start with a script
 
 From the source checkout, run `uv sync`. Save this as `greeting.py`:
 
 ```python
-from run_script import Script
+from func_seq import Script
 
 def collect():
-    return {"message": "Hello from run_script!"}
+    return {"message": "Hello from func_seq!"}
 
 def display(message):
     print(message)
@@ -50,7 +53,7 @@ before the dependent function runs.
 | `pause` | Continue until `pause()` is called or a queued pause marker completes. |
 
 `script.add_pause(step_id="review")` queues a visible marker. Its output is
-`None`, and it cannot be used as a result reference. `from run_script import pause`
+`None`, and it cannot be used as a result reference. `from func_seq import pause`
 provides `pause()` inside a function. It requests a pause after the function
 returns, so subsequent lines still run. It does nothing outside a running script
 or with another pace. Completion takes precedence if no work remains.
@@ -109,7 +112,7 @@ PID or lock. See the [storage contract](docs/storage.md) for schema and limits.
 
 ```python
 import asyncio
-from run_script import Script
+from func_seq import Script
 
 async def collect():
     return {"value": 3}
@@ -139,10 +142,10 @@ functions instead of creating another loop.
 Run the bundled example from the checkout:
 
 ```console
-uv run run-script run examples.greeting:script --checkpoint greeting.progress.json --interactive
-uv run run-script status greeting.progress.json
-uv run run-script run examples.greeting:script --checkpoint greeting.progress.json
-uv run run-script delete greeting.progress.json
+uv run func-seq run examples.greeting:script --checkpoint greeting.progress.json --interactive
+uv run func-seq status greeting.progress.json
+uv run func-seq run examples.greeting:script --checkpoint greeting.progress.json
+uv run func-seq delete greeting.progress.json
 ```
 
 `run` imports an explicitly selected **trusted** `module:attribute`. The current
@@ -157,11 +160,11 @@ During execution Ctrl-C requests a cooperative pause and waits for the function
 to return. The prior signal handler is restored afterward. A function that blocks
 indefinitely cannot be forced to finish by cooperative STOP.
 
-Use `--async` for async scripts, `--pace function` or `--pace pause` for a single
+Use `--async` for async sequences, `--pace function` or `--pace pause` for a single
 paced invocation, and `--console-log` for structural events. `--restart` and
 `--retry` authorize repetition. Completion/cooperative pause returns exit code 0;
 errors return 2; KeyboardInterrupt at the prompt returns 130.
-`python -m run_script` provides the same commands. The library intercepts no signals.
+`python -m func_seq` provides the same commands. The library intercepts no signals.
 
 ## Development
 
@@ -175,5 +178,5 @@ CI checks Python 3.14 on Linux, macOS and Windows, distribution contents and an
 isolated installed CLI. Tests use synthetic functions and temporary files. There
 are no real desktop actions. License selection, publication, desktop listeners
 and recording formats retain separate decisions in the
-[roadmap](https://github.com/outside-labs/run_script/issues/1) and
+[roadmap](https://github.com/outside-labs/func_seq/issues/1) and
 [Project](https://github.com/orgs/outside-labs/projects/12).
