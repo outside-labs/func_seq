@@ -21,7 +21,7 @@ class Control:
         self._pause.clear()
 
 
-_current: ContextVar[tuple[Control, str] | None] = ContextVar("run_script_control", default=None)
+_current: ContextVar[tuple[Control, str] | None] = ContextVar("func_seq_control", default=None)
 
 
 def pause() -> None:

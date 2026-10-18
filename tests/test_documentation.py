@@ -26,5 +26,5 @@ class DocumentationTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         namespace = runpy.run_path(str(root / "examples" / "greeting.py"))
         with redirect_stdout(StringIO()):
-            result = namespace["script"].run()
+            result = namespace["sequence"].run()
         self.assertEqual(result.results["display"], {"displayed": True})

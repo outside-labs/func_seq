@@ -3,7 +3,7 @@
 The caller selects a local file in an existing parent directory. Keep that
 directory private. JSON is plaintext and unauthenticated: schema validation
 cannot stop a malicious local writer from fabricating plausible results. Avoid
-storing secrets in results. Reading progress never imports script code.
+storing secrets in results. Reading progress never imports sequence code.
 
 ## Schema version 1
 

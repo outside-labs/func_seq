@@ -1,39 +1,39 @@
 """Public errors without automatic inclusion of application values."""
 
 
-class ScriptError(Exception):
-    """Base error for script definition and execution."""
+class SequenceError(Exception):
+    """Base error for sequence definition and execution."""
 
 
-class DefinitionError(ScriptError, ValueError):
+class DefinitionError(SequenceError, ValueError):
     """The queue cannot be executed as defined."""
 
 
-class InvalidValueError(ScriptError, ValueError):
+class InvalidValueError(SequenceError, ValueError):
     """A value is not bounded, strict JSON data."""
 
 
-class ResolutionError(ScriptError, ValueError):
+class ResolutionError(SequenceError, ValueError):
     """An earlier result does not contain the requested path."""
 
 
-class BusyError(ScriptError):
-    """The script or checkpoint is already in use."""
+class BusyError(SequenceError):
+    """The sequence or checkpoint is already in use."""
 
 
-class CheckpointError(ScriptError):
+class CheckpointError(SequenceError):
     """Progress could not be read, validated or safely stored."""
 
 
 class DefinitionMismatchError(CheckpointError):
-    """Progress belongs to a different script definition."""
+    """Progress belongs to a different sequence definition."""
 
 
-class RecoveryRequiredError(ScriptError):
+class RecoveryRequiredError(SequenceError):
     """An uncertain step requires explicit retry or restart."""
 
 
-class StepFailedError(ScriptError):
+class StepFailedError(SequenceError):
     """A callable or its result could not be committed."""
 
     def __init__(self, step_id: str):

@@ -1,10 +1,10 @@
-"""Run with: run-script run examples.greeting:script --checkpoint greeting.progress.json"""
+"""Run with: func-seq run examples.greeting:sequence --checkpoint greeting.progress.json"""
 
-from run_script import Script
+from func_seq import Sequence
 
 
 def collect():
-    return {"message": "Hello from run_script!"}
+    return {"message": "Hello from func_seq!"}
 
 
 def display(message):
@@ -12,6 +12,6 @@ def display(message):
     return {"displayed": True}
 
 
-script = Script("greeting", version="1")
-collected = script.add_function(collect)
-script.add_function(display, collected["message"])
+sequence = Sequence("greeting", version="1")
+collected = sequence.add_function(collect)
+sequence.add_function(display, collected["message"])

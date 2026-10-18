@@ -8,7 +8,7 @@ from typing import Any, Callable
 from uuid import uuid4
 
 from .control import Control, _current
-from .definitions import Script, resolve
+from .definitions import Sequence, resolve
 from .errors import (
     BusyError, CheckpointError, DefinitionError, DefinitionMismatchError,
     RecoveryRequiredError, StepFailedError,
@@ -38,7 +38,7 @@ class RunResult:
 @dataclass(frozen=True)
 class Event:
     kind: str
-    script: str
+    sequence: str
     step_id: str | None
     next_step: int
 
@@ -65,8 +65,8 @@ class _Call:
     kwargs: dict
 
 
-def _result(script: Script, state: _State) -> RunResult:
-    return RunResult(state.status, state.cursor, script.step_ids[:state.cursor],
+def _result(sequence: Sequence, state: _State) -> RunResult:
+    return RunResult(state.status, state.cursor, sequence.step_ids[:state.cursor],
                      copy_json(state.results), state.run_id)
 
 
@@ -84,11 +84,11 @@ def _options(pace, control, observer, console_log):
     return control if control is not None else Control()
 
 
-def _drive(script, state, persist, *, pace, control, observer, console_log, retry):
+def _drive(sequence, state, persist, *, pace, control, observer, console_log, retry):
     def emit(kind, step_id=None):
-        event = Event(kind, script.name, step_id, state.cursor)
+        event = Event(kind, sequence.name, step_id, state.cursor)
         if console_log:
-            print(f"{event.script}: {event.kind}" + (f" {step_id}" if step_id else ""))
+            print(f"{event.sequence}: {event.kind}" + (f" {step_id}" if step_id else ""))
         if observer is not None:
             observed = observer(event)
             if inspect.isawaitable(observed):
@@ -101,13 +101,13 @@ def _drive(script, state, persist, *, pace, control, observer, console_log, retr
             raise RecoveryRequiredError("An uncertain step requires retry=True or restart=True")
         state = replace(state, active_step=None, status=Status.PAUSED, error_type=None)
         persist(state)
-    while state.cursor < len(script._steps):
+    while state.cursor < len(sequence._steps):
         if control.pause_requested:
             state = replace(state, status=Status.PAUSED)
             persist(state)
             emit("paused")
-            return _result(script, state)
-        step = script._steps[state.cursor]
+            return _result(sequence, state)
+        step = sequence._steps[state.cursor]
         # Resolve and notify before creating uncertainty about an external call.
         args = tuple(resolve(value, state.results) for value in step.args)
         kwargs = {key: resolve(value, state.results) for key, value in step.kwargs.items()}
@@ -124,7 +124,7 @@ def _drive(script, state, persist, *, pace, control, observer, console_log, retr
             state = replace(state, status=Status.PAUSED, active_step=None)
             persist(state)
             emit("paused")
-            return _result(script, state)
+            return _result(sequence, state)
         try:
             token = _current.set((control, pace))
             try:
@@ -148,18 +148,18 @@ def _drive(script, state, persist, *, pace, control, observer, console_log, retr
                 raise
             raise StepFailedError(step.step_id) from error
         emit("finished", step.step_id)
-        if state.cursor < len(script._steps) and (
+        if state.cursor < len(sequence._steps) and (
             control.pause_requested or (pace == "function" and step.function is not None)
             or (pace == "pause" and step.function is None)
         ):
             state = replace(state, status=Status.PAUSED)
             persist(state)
             emit("paused")
-            return _result(script, state)
+            return _result(sequence, state)
     state = replace(state, status=Status.COMPLETED)
     persist(state)
     emit("completed")
-    return _result(script, state)
+    return _result(sequence, state)
 
 
 def _call_sync(call):
@@ -194,65 +194,65 @@ def _document(state):
             "error_type": state.error_type}
 
 
-def _restore(script, data):
-    if data["fingerprint"] != script.fingerprint:
-        raise DefinitionMismatchError("Checkpoint belongs to a different script definition")
+def _restore(sequence, data):
+    if data["fingerprint"] != sequence.fingerprint:
+        raise DefinitionMismatchError("Checkpoint belongs to a different sequence definition")
     cursor = data["cursor"]
-    if cursor > len(script._steps) or set(data["results"]) != set(script.step_ids[:cursor]):
+    if cursor > len(sequence._steps) or set(data["results"]) != set(sequence.step_ids[:cursor]):
         raise CheckpointError("Checkpoint outputs are not the completed prefix")
     if data["active_step"] is not None and (
-        cursor == len(script._steps) or data["active_step"] != script.step_ids[cursor]
+        cursor == len(sequence._steps) or data["active_step"] != sequence.step_ids[cursor]
     ):
         raise CheckpointError("Checkpoint active step is inconsistent")
-    if data["status"] == "completed" and cursor != len(script._steps):
+    if data["status"] == "completed" and cursor != len(sequence._steps):
         raise CheckpointError("Checkpoint completion is inconsistent")
     if any(step.function is None and data["results"][step.step_id] is not None
-           for step in script._steps[:cursor]):
+           for step in sequence._steps[:cursor]):
         raise CheckpointError("Pause marker output must be null")
     return _State(data["fingerprint"], data["run_id"], Status(data["status"]), cursor,
                   data["active_step"], data["results"], data["error_type"])
 
 
 @contextmanager
-def _session(script, checkpoint, restart, retry):
+def _session(sequence, checkpoint, restart, retry):
     if type(restart) is not bool or type(retry) is not bool or (restart and retry):
         raise ValueError("restart and retry must be booleans and cannot both be true")
-    if not script._lock.acquire(blocking=False):
-        raise BusyError("Script is already executing")
+    if not sequence._lock.acquire(blocking=False):
+        raise BusyError("Sequence is already executing")
     try:
         store = CheckpointStore(checkpoint) if checkpoint is not None else None
         selected = str(store.path) if store is not None else None
-        if script._state is not None and script._checkpoint_path != selected and not restart:
-            raise DefinitionError("Use a fresh Script or restart=True to select different progress storage")
+        if sequence._state is not None and sequence._checkpoint_path != selected and not restart:
+            raise DefinitionError("Use a fresh Sequence or restart=True to select different progress storage")
         with store.owned() if store is not None else nullcontext():
-            state = None if restart else script._state
+            state = None if restart else sequence._state
             if store is not None and not restart:
                 data = store.read()
-                if data is None and script._state is not None:
+                if data is None and sequence._state is not None:
                     raise CheckpointError("Progress disappeared; explicit restart is required")
-                state = _restore(script, data) if data is not None else None
+                state = _restore(sequence, data) if data is not None else None
             if state is None:
-                state = _State(script.fingerprint, str(uuid4()))
+                state = _State(sequence.fingerprint, str(uuid4()))
 
             def persist(updated):
                 if store is not None:
                     store.save(_document(updated))
-                script._state = updated
-                script._checkpoint_path = selected
+                sequence._state = updated
+                sequence._checkpoint_path = selected
 
             persist(state)
             yield state, persist
     finally:
-        script._lock.release()
+        sequence._lock.release()
 
 
-def run(script: Script, *, pace="auto", control=None, observer=None,
+def run(sequence: Sequence, *, pace="auto", control=None, observer=None,
         console_log=False, restart=False, retry=False, checkpoint=None) -> RunResult:
     control = _options(pace, control, observer, console_log)
-    if any(inspect.iscoroutinefunction(step.function) for step in script._steps):
-        raise DefinitionError("Script contains asynchronous functions; use arun()")
-    with _session(script, checkpoint, restart, retry) as (state, persist):
-        return _pump_sync(_drive(script, state, persist, pace=pace, control=control,
+    if any(inspect.iscoroutinefunction(step.function) for step in sequence._steps):
+        raise DefinitionError("Sequence contains asynchronous functions; use arun()")
+    with _session(sequence, checkpoint, restart, retry) as (state, persist):
+        return _pump_sync(_drive(sequence, state, persist, pace=pace, control=control,
                                  observer=observer, console_log=console_log, retry=retry))
 
 
@@ -274,24 +274,24 @@ async def _pump_async(driver):
         driver.close()
 
 
-async def arun(script: Script, *, pace="auto", control=None, observer=None,
+async def arun(sequence: Sequence, *, pace="auto", control=None, observer=None,
                console_log=False, restart=False, retry=False, checkpoint=None) -> RunResult:
     """Await a sequential queue; synchronous functions execute on the calling thread."""
     control = _options(pace, control, observer, console_log)
-    with _session(script, checkpoint, restart, retry) as (state, persist):
-        return await _pump_async(_drive(script, state, persist, pace=pace, control=control,
+    with _session(sequence, checkpoint, restart, retry) as (state, persist):
+        return await _pump_async(_drive(sequence, state, persist, pace=pace, control=control,
                                        observer=observer, console_log=console_log, retry=retry))
 
 
-def delete_progress(script, checkpoint=None):
-    if not script._lock.acquire(blocking=False):
-        raise BusyError("Script is already executing")
+def delete_progress(sequence, checkpoint=None):
+    if not sequence._lock.acquire(blocking=False):
+        raise BusyError("Sequence is already executing")
     try:
-        selected = checkpoint if checkpoint is not None else script._checkpoint_path
-        removed = CheckpointStore(selected).delete() if selected is not None else script._state is not None
-        if selected is None or str(CheckpointStore(selected).path) == script._checkpoint_path:
-            script._state = None
-            script._checkpoint_path = None
+        selected = checkpoint if checkpoint is not None else sequence._checkpoint_path
+        removed = CheckpointStore(selected).delete() if selected is not None else sequence._state is not None
+        if selected is None or str(CheckpointStore(selected).path) == sequence._checkpoint_path:
+            sequence._state = None
+            sequence._checkpoint_path = None
         return removed
     finally:
-        script._lock.release()
+        sequence._lock.release()

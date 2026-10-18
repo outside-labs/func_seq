@@ -1,1 +1,1 @@
-"""Synthetic scripts that perform no desktop operations."""
+"""Synthetic function sequences that perform no desktop operations."""
