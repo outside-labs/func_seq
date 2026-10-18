@@ -101,6 +101,7 @@ class Script:
         self._steps: list[_Step] = []
         self._lock = Lock()
         self._state = None
+        self._checkpoint_path = None
 
     @property
     def name(self) -> str:
@@ -171,3 +172,9 @@ class Script:
         from .runtime import run
 
         return run(self, **options)
+
+    def delete_progress(self, *, checkpoint=None) -> bool:
+        """Discard selected progress without executing the script."""
+        from .runtime import delete_progress
+
+        return delete_progress(self, checkpoint)

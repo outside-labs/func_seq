@@ -1,5 +1,6 @@
 """A shared sequential state machine with calls at explicit yield boundaries."""
 
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, replace
 from enum import StrEnum
 import inspect
@@ -8,7 +9,11 @@ from uuid import uuid4
 
 from .control import Control, _current
 from .definitions import Script, resolve
-from .errors import BusyError, DefinitionError, RecoveryRequiredError, StepFailedError
+from .errors import (
+    BusyError, CheckpointError, DefinitionError, DefinitionMismatchError,
+    RecoveryRequiredError, StepFailedError,
+)
+from .storage import CheckpointStore
 from .values import copy_json, encode_json
 
 
@@ -88,7 +93,7 @@ def _drive(script, state, persist, *, pace, control, observer, console_log, retr
     if state.active_step is not None:
         if not retry:
             raise RecoveryRequiredError("An uncertain step requires retry=True or restart=True")
-        state = replace(state, active_step=None, status=Status.READY, error_type=None)
+        state = replace(state, active_step=None, status=Status.PAUSED, error_type=None)
         persist(state)
     while state.cursor < len(script._steps):
         if control.pause_requested:
@@ -169,19 +174,82 @@ def _pump_sync(driver):
         driver.close()
 
 
-def run(script: Script, *, pace="auto", control=None, observer=None,
-        console_log=False, restart=False, retry=False) -> RunResult:
-    control = _options(pace, control, observer, console_log)
+def _document(state):
+    return {"schema": 1, "fingerprint": state.fingerprint, "run_id": state.run_id,
+            "status": str(state.status), "cursor": state.cursor,
+            "active_step": state.active_step, "results": state.results,
+            "error_type": state.error_type}
+
+
+def _restore(script, data):
+    if data["fingerprint"] != script.fingerprint:
+        raise DefinitionMismatchError("Checkpoint belongs to a different script definition")
+    cursor = data["cursor"]
+    if cursor > len(script._steps) or set(data["results"]) != set(script.step_ids[:cursor]):
+        raise CheckpointError("Checkpoint outputs are not the completed prefix")
+    if data["active_step"] is not None and (
+        cursor == len(script._steps) or data["active_step"] != script.step_ids[cursor]
+    ):
+        raise CheckpointError("Checkpoint active step is inconsistent")
+    if data["status"] == "completed" and cursor != len(script._steps):
+        raise CheckpointError("Checkpoint completion is inconsistent")
+    if any(step.function is None and data["results"][step.step_id] is not None
+           for step in script._steps[:cursor]):
+        raise CheckpointError("Pause marker output must be null")
+    return _State(data["fingerprint"], data["run_id"], Status(data["status"]), cursor,
+                  data["active_step"], data["results"], data["error_type"])
+
+
+@contextmanager
+def _session(script, checkpoint, restart, retry):
+    if type(restart) is not bool or type(retry) is not bool or (restart and retry):
+        raise ValueError("restart and retry must be booleans and cannot both be true")
     if not script._lock.acquire(blocking=False):
         raise BusyError("Script is already executing")
     try:
-        state = _State(script.fingerprint, str(uuid4())) if restart or script._state is None else script._state
+        store = CheckpointStore(checkpoint) if checkpoint is not None else None
+        selected = str(store.path) if store is not None else None
+        if script._state is not None and script._checkpoint_path != selected and not restart:
+            raise DefinitionError("Use a fresh Script or restart=True to select different progress storage")
+        with store.owned() if store is not None else nullcontext():
+            state = None if restart else script._state
+            if store is not None and not restart:
+                data = store.read()
+                if data is None and script._state is not None:
+                    raise CheckpointError("Progress disappeared; explicit restart is required")
+                state = _restore(script, data) if data is not None else None
+            if state is None:
+                state = _State(script.fingerprint, str(uuid4()))
 
-        def persist(updated):
-            script._state = updated
+            def persist(updated):
+                if store is not None:
+                    store.save(_document(updated))
+                script._state = updated
+                script._checkpoint_path = selected
 
-        persist(state)
+            persist(state)
+            yield state, persist
+    finally:
+        script._lock.release()
+
+
+def run(script: Script, *, pace="auto", control=None, observer=None,
+        console_log=False, restart=False, retry=False, checkpoint=None) -> RunResult:
+    control = _options(pace, control, observer, console_log)
+    with _session(script, checkpoint, restart, retry) as (state, persist):
         return _pump_sync(_drive(script, state, persist, pace=pace, control=control,
                                  observer=observer, console_log=console_log, retry=retry))
+
+
+def delete_progress(script, checkpoint=None):
+    if not script._lock.acquire(blocking=False):
+        raise BusyError("Script is already executing")
+    try:
+        selected = checkpoint if checkpoint is not None else script._checkpoint_path
+        removed = CheckpointStore(selected).delete() if selected is not None else script._state is not None
+        if selected is None or str(CheckpointStore(selected).path) == script._checkpoint_path:
+            script._state = None
+            script._checkpoint_path = None
+        return removed
     finally:
         script._lock.release()
