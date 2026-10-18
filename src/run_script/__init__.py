@@ -16,7 +16,3 @@ __all__ = [
     "RecoveryRequiredError", "Ref", "ResolutionError", "RunResult", "Script",
     "ScriptError", "Status", "StepFailedError", "pause",
 ]
-
-
-def main() -> None:
-    print("run_script: define a Script to queue named Python functions")

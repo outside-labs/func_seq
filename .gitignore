@@ -8,3 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Local script progress
+*.progress.json
+*.progress.json.lock
