@@ -1,13 +1,17 @@
 [project]
 name = "run-script"
 version = "0.1.0"
-description = "Add your description here"
+description = "Cooperative Python scripts with explicit pauses and JSON progress"
 readme = "README.md"
 authors = [
     { name = "ellainng", email = "299958882+ellainng@users.noreply.github.com" }
 ]
 requires-python = ">=3.14"
 dependencies = []
+
+[project.urls]
+Repository = "https://github.com/outside-labs/run_script"
+Issues = "https://github.com/outside-labs/run_script/issues"
 
 [project.scripts]
 run-script = "run_script:main"
