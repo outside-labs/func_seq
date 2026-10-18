@@ -176,7 +176,8 @@ uv run python scripts/check_distribution.py dist
 
 CI checks Python 3.14 on Linux, macOS and Windows, distribution contents and an
 isolated installed CLI. Tests use synthetic functions and temporary files. There
-are no real desktop actions. License selection, publication, desktop listeners
-and recording formats retain separate decisions in the
+are no real desktop actions. See the [release process](docs/releasing.md) for
+version tags and PyPI publication. License selection, desktop listeners and
+recording formats retain separate decisions in the
 [roadmap](https://github.com/outside-labs/func_seq/issues/1) and
 [Project](https://github.com/orgs/outside-labs/projects/12).

@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import tomllib
 import venv
 import zipfile
 
@@ -23,6 +24,7 @@ PACKAGE_FILES = {
 SUPPORT_FILES = {
     "README.md", "pyproject.toml", "pyproject.toml.orig", "PKG-INFO",
     "docs/storage.md", "examples/__init__.py", "examples/greeting.py",
+    "docs/releasing.md",
     "scripts/check_distribution.py",
     *{f"tests/test_{name}.py" for name in ("async", "cli", "definitions", "documentation", "runtime", "storage")},
 }
@@ -40,7 +42,7 @@ def run(command, *, cwd, environment):
     return result.stdout
 
 
-def check(directory):
+def check(directory, tag=None):
     wheels, sources = list(directory.glob("*.whl")), list(directory.glob("*.tar.gz"))
     require(len(wheels) == len(sources) == 1, "Use a directory containing exactly one wheel and one sdist")
     wheel, source = wheels[0].resolve(), sources[0].resolve()
@@ -53,6 +55,9 @@ def check(directory):
         info = metadata_path.rsplit("/", 1)[0]
         metadata = BytesParser().parsebytes(archive.read(metadata_path))
         require(metadata["Name"] == "func-seq" and metadata["Requires-Python"] == ">=3.14", "Unexpected metadata")
+        require(info == f"func_seq-{metadata['Version']}.dist-info", "Wheel identity mismatch")
+        if tag is not None:
+            require(tag == f"v{metadata['Version']}", "Release tag must match the distribution version")
         require(not metadata.get_all("Requires-Dist"), "Runtime dependencies must remain empty")
         allowed = {f"func_seq/{name}" for name in PACKAGE_FILES} | {
             f"{info}/{name}" for name in ("METADATA", "WHEEL", "RECORD", "entry_points.txt")}
@@ -81,6 +86,8 @@ def check(directory):
             require(contents[f"src/func_seq/{name}"] == payload, "Wheel/source implementation mismatch")
         source_metadata = BytesParser().parsebytes(contents["PKG-INFO"])
         require(source_metadata["Version"] == metadata["Version"] and not source_metadata.get_all("Requires-Dist"), "Sdist metadata mismatch")
+        project = tomllib.loads(contents["pyproject.toml"].decode())["project"]
+        require(project["name"] == "func-seq" and project["version"] == metadata["Version"], "Source project identity mismatch")
     environment = os.environ.copy()
     for key in ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"):
         environment.pop(key, None)
@@ -134,4 +141,7 @@ sequence.add_function(second, ref["value"])
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
-    check(parser.parse_args().directory)
+    parser.add_argument("--tag", default=os.environ.get("RELEASE_TAG") or None,
+                        help="require the release tag to equal v plus the package version")
+    arguments = parser.parse_args()
+    check(arguments.directory, arguments.tag)
