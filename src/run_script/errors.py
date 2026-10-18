@@ -21,6 +21,14 @@ class BusyError(ScriptError):
     """The script or checkpoint is already in use."""
 
 
+class CheckpointError(ScriptError):
+    """Progress could not be read, validated or safely stored."""
+
+
+class DefinitionMismatchError(CheckpointError):
+    """Progress belongs to a different script definition."""
+
+
 class RecoveryRequiredError(ScriptError):
     """An uncertain step requires explicit retry or restart."""
 
