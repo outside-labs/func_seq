@@ -118,6 +118,13 @@ def _drive(script, state, persist, *, pace, control, observer, console_log, retr
         active = replace(state, status=Status.RUNNING, active_step=step.step_id, error_type=None)
         persist(active)
         state = active
+        # A disk write may take long enough for STOP to arrive after the first
+        # check. No callable has run yet, so this is still a safe pause boundary.
+        if control.pause_requested:
+            state = replace(state, status=Status.PAUSED, active_step=None)
+            persist(state)
+            emit("paused")
+            return _result(script, state)
         try:
             token = _current.set((control, pace))
             try:
