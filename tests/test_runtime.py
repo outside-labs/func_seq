@@ -181,3 +181,35 @@ class RuntimeTests(unittest.TestCase):
     def test_unsupported_pace(self):
         with self.assertRaisesRegex(ValueError, "line stepping"):
             Script("line").run(pace="line")
+
+    def test_stop_during_marker_write_prevents_call_in_both_adapters(self):
+        import asyncio
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from unittest.mock import patch
+        from run_script import CheckpointStore
+
+        original = CheckpointStore.save
+        for asynchronous in (False, True):
+            with self.subTest(asynchronous=asynchronous), TemporaryDirectory() as directory:
+                path = Path(directory) / "progress.json"
+                control, calls = Control(), []
+                script = Script("write-stop")
+                script.add_function(lambda: calls.append(1), step_id="action")
+
+                def save(store, data):
+                    original(store, data)
+                    if data["status"] == "running" and data["active_step"]:
+                        control.request_pause()
+
+                def execute():
+                    options = dict(checkpoint=path, control=control)
+                    return asyncio.run(script.arun(**options)) if asynchronous else script.run(**options)
+
+                with patch.object(CheckpointStore, "save", save):
+                    result = execute()
+                self.assertEqual((result.status, result.next_step, calls), (Status.PAUSED, 0, []))
+                self.assertIsNone(CheckpointStore(path).read()["active_step"])
+                control.reset()
+                self.assertEqual(execute().status, Status.COMPLETED)
+                self.assertEqual(calls, [1])
