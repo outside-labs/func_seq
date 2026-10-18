@@ -165,3 +165,9 @@ class Script:
     @property
     def fingerprint(self) -> str:
         return hashlib.sha256(encode_json(self.manifest)).hexdigest()
+
+    def run(self, **options):
+        """Run synchronously; repeated calls continue from completed steps."""
+        from .runtime import run
+
+        return run(self, **options)

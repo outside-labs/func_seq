@@ -19,3 +19,15 @@ class ResolutionError(ScriptError, ValueError):
 
 class BusyError(ScriptError):
     """The script or checkpoint is already in use."""
+
+
+class RecoveryRequiredError(ScriptError):
+    """An uncertain step requires explicit retry or restart."""
+
+
+class StepFailedError(ScriptError):
+    """A callable or its result could not be committed."""
+
+    def __init__(self, step_id: str):
+        self.step_id = step_id
+        super().__init__(f"Step '{step_id}' did not complete; explicit recovery is required")
