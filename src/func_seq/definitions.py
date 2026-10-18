@@ -92,8 +92,8 @@ class _Step:
     kwargs: dict
 
 
-class Sequence:
-    """Build a sequential sequence. Bump version when callable behavior changes."""
+class Script:
+    """Build a sequential script. Bump version when callable behavior changes."""
 
     def __init__(self, name: str, *, version: str = "1") -> None:
         self._name = _identifier(name)
@@ -134,10 +134,10 @@ class Sequence:
 
     def _append(self, step_id, function, action, args, kwargs):
         if not self._lock.acquire(blocking=False):
-            raise BusyError("Sequence is executing")
+            raise BusyError("Script is executing")
         try:
             if self._state is not None:
-                raise DefinitionError("A sequence with progress cannot be changed; build a new definition")
+                raise DefinitionError("A script with progress cannot be changed; build a new definition")
             if step_id in self.step_ids:
                 raise DefinitionError("Step IDs must be unique")
             previous = {step.step_id for step in self._steps if step.function is not None}
@@ -174,7 +174,7 @@ class Sequence:
         return run(self, **options)
 
     def delete_progress(self, *, checkpoint=None) -> bool:
-        """Discard selected progress without executing the sequence."""
+        """Discard selected progress without executing the script."""
         from .runtime import delete_progress
 
         return delete_progress(self, checkpoint)

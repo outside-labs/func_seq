@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from func_seq import (
     BusyError, CheckpointError, CheckpointStore, DefinitionError,
-    DefinitionMismatchError, RecoveryRequiredError, Sequence, Status, StepFailedError,
+    DefinitionMismatchError, RecoveryRequiredError, Script, Status, StepFailedError,
 )
 from func_seq.values import MAX_BYTES
 
@@ -19,10 +19,10 @@ def identity(value):
 
 
 def definition(version="1"):
-    sequence = Sequence("stored", version=version)
-    first = sequence.add_function(identity, {"value": 3}, step_id="first")
-    sequence.add_function(identity, first["value"], step_id="second")
-    return sequence
+    script = Script("stored", version=version)
+    first = script.add_function(identity, {"value": 3}, step_id="first")
+    script.add_function(identity, first["value"], step_id="second")
+    return script
 
 
 class StorageTests(unittest.TestCase):
@@ -128,9 +128,9 @@ class StorageTests(unittest.TestCase):
             return real_replace(source, target)
 
         def build():
-            sequence = Sequence("atomic")
-            sequence.add_function(action)
-            return sequence
+            script = Script("atomic")
+            script.add_function(action)
+            return script
 
         with patch("func_seq.storage.os.replace", side_effect=replacement):
             with self.assertRaises(StepFailedError):
@@ -154,9 +154,9 @@ class StorageTests(unittest.TestCase):
             return "ok"
 
         def build():
-            sequence = Sequence("retry")
-            sequence.add_function(action)
-            return sequence
+            script = Script("retry")
+            script.add_function(action)
+            return script
 
         with self.assertRaises(StepFailedError):
             build().run(checkpoint=self.path)
@@ -168,37 +168,37 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(len(calls), 2)
 
     def test_interrupt_preserved_and_not_automatically_replayed(self):
-        sequence = Sequence("interrupt")
+        script = Script("interrupt")
 
         def action():
             raise KeyboardInterrupt
 
-        sequence.add_function(action)
+        script.add_function(action)
         with self.assertRaises(KeyboardInterrupt):
-            sequence.run(checkpoint=self.path)
+            script.run(checkpoint=self.path)
         self.assertEqual(CheckpointStore(self.path).read()["status"], "interrupted")
         with self.assertRaises(RecoveryRequiredError):
-            sequence.run(checkpoint=self.path)
+            script.run(checkpoint=self.path)
 
     def test_missing_parent_and_disappeared_progress(self):
         with self.assertRaises(CheckpointError):
             definition().run(checkpoint=self.path / "missing" / "state.json")
-        sequence = definition()
-        sequence.run(checkpoint=self.path, pace="function")
+        script = definition()
+        script.run(checkpoint=self.path, pace="function")
         self.path.unlink()
         with self.assertRaises(CheckpointError):
-            sequence.run(checkpoint=self.path)
+            script.run(checkpoint=self.path)
 
     def test_restart_delete_and_storage_switch_are_explicit(self):
-        sequence = definition()
-        first = sequence.run(checkpoint=self.path, pace="function")
+        script = definition()
+        first = script.run(checkpoint=self.path, pace="function")
         with self.assertRaises(DefinitionError):
-            sequence.run()
-        restarted = sequence.run(checkpoint=self.path, restart=True, pace="function")
+            script.run()
+        restarted = script.run(checkpoint=self.path, restart=True, pace="function")
         self.assertNotEqual(first.run_id, restarted.run_id)
-        self.assertTrue(sequence.delete_progress())
+        self.assertTrue(script.delete_progress())
         self.assertFalse(self.path.exists())
-        self.assertEqual(sequence.run(checkpoint=self.path).status, Status.COMPLETED)
+        self.assertEqual(script.run(checkpoint=self.path).status, Status.COMPLETED)
         self.assertTrue(CheckpointStore(self.path).delete())
         self.assertFalse(CheckpointStore(self.path).delete())
 
@@ -207,14 +207,14 @@ class StorageTests(unittest.TestCase):
         code = '''
 from pathlib import Path
 import sys
-from func_seq import Sequence
+from func_seq import Script
 def first():
     with Path(sys.argv[2]).open("a") as stream: stream.write("first\\n")
     return {"value": 7}
 def second(value):
     with Path(sys.argv[2]).open("a") as stream: stream.write("second\\n")
     return value
-s = Sequence("process")
+s = Script("process")
 ref = s.add_function(first)
 s.add_function(second, ref["value"])
 print(s.run(checkpoint=sys.argv[1], pace=sys.argv[3]).status)
@@ -229,9 +229,9 @@ print(s.run(checkpoint=sys.argv[1], pace=sys.argv[3]).status)
     def test_hard_process_exit_leaves_lock_and_uncertain_marker(self):
         code = '''
 import os, sys
-from func_seq import Sequence
+from func_seq import Script
 def action(): os._exit(19)
-s = Sequence("crash")
+s = Script("crash")
 s.add_function(action)
 s.run(checkpoint=sys.argv[1])
 '''
